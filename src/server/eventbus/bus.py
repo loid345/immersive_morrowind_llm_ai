@@ -22,6 +22,8 @@ class EventBus(EventProducer, EventConsumer):
         system: MwseTcp
         producers: int
         consumers: int
+        queue_max_size: int
+        queue_overflow: Literal['drop_newest', 'drop_oldest']
 
     def __init__(self, config: Config):
         self._config = config
@@ -31,8 +33,8 @@ class EventBus(EventProducer, EventConsumer):
         self._backend = self._create_backend()
         self._handlers: List[Callable[[Event], Coroutine[Any, Any, None]]] = []
 
-        self._events_to_produce_to_game: list[Event] = []
-        self._events_consumed_from_game: list[Event] = []
+        self._events_to_produce_to_game: asyncio.Queue[Event] = asyncio.Queue(maxsize=config.queue_max_size)
+        self._events_consumed_from_game: asyncio.Queue[Event] = asyncio.Queue(maxsize=config.queue_max_size)
 
     def start(self):
         for _ in range(0, self._config.producers):
@@ -51,47 +53,36 @@ class EventBus(EventProducer, EventConsumer):
 
     async def _consumer(self):
         while True:
-            processed = False
+            event = await self._events_consumed_from_game.get()
+            Logger.set_ctx(f"consumer_event:{event.event_id}")
 
-            if len(self._events_consumed_from_game) > 0:
-                processed = True
-                event = self._events_consumed_from_game.pop(0)
-                Logger.set_ctx(f"consumer_event:{event.event_id}")
-
-                for h in self._handlers:
-                    try:
-                        await h(event)
-                    except Exception as error:
-                        logger.error(f"Consumer handler failed: event={event} error={error}")
-                        logger.debug(traceback.format_exc())
-
-            if not processed:
-                await asyncio.sleep(1.0 / 30.0)
+            for h in self._handlers:
+                try:
+                    await h(event)
+                except Exception as error:
+                    logger.error(f"Consumer handler failed: event={event} error={error}")
+                    logger.debug(traceback.format_exc())
 
     async def _producer(self):
         while True:
-            processed = False
+            event = await self._events_to_produce_to_game.get()
+            Logger.set_ctx(f"produce_event:{event.event_id}")
 
-            if len(self._events_to_produce_to_game) > 0:
-                processed = True
-                event = self._events_to_produce_to_game.pop(0)
-                Logger.set_ctx(f"produce_event:{event.event_id}")
+            self._backend.publish_event_to_game(event)
 
-                self._backend.publish_event_to_game(event)
-
-                for h in self._handlers:
-                    try:
-                        await h(event)
-                    except Exception as error:
-                        logger.error(f"Handler failed: event={event} error={error}")
-                        logger.debug(traceback.format_exc())
-
-            if not processed:
-                await asyncio.sleep(1.0 / 30.0)
+            for h in self._handlers:
+                try:
+                    await h(event)
+                except Exception as error:
+                    logger.error(f"Handler failed: event={event} error={error}")
+                    logger.debug(traceback.format_exc())
 
     def _handle_event_from_game(self, event: Event):
         logger.debug(f"> from game: {event}")
-        self._events_consumed_from_game.append(event)
+        try:
+            self._events_consumed_from_game.put_nowait(event)
+        except asyncio.QueueFull:
+            self._handle_queue_full(self._events_consumed_from_game, event, direction="incoming")
 
     def register_handler(self, handler: Callable[[Event], Coroutine[Any, Any, None]]):
         self._handlers.append(handler)
@@ -101,4 +92,23 @@ class EventBus(EventProducer, EventConsumer):
         self._next_event_id = self._next_event_id + 1
 
         logger.debug(f"> to game: {event}")
-        self._events_to_produce_to_game.append(event)
+        try:
+            self._events_to_produce_to_game.put_nowait(event)
+        except asyncio.QueueFull:
+            self._handle_queue_full(self._events_to_produce_to_game, event, direction="outgoing")
+
+    def _handle_queue_full(self, queue: asyncio.Queue[Event], event: Event, direction: str):
+        if self._config.queue_overflow == 'drop_oldest':
+            try:
+                queue.get_nowait()
+            except asyncio.QueueEmpty:
+                logger.warning(f"{direction} event queue was full but now empty, dropping event={event}")
+                return
+            try:
+                queue.put_nowait(event)
+            except asyncio.QueueFull:
+                logger.warning(f"{direction} event queue is still full, dropping event={event}")
+            else:
+                logger.warning(f"{direction} event queue full, dropped oldest to enqueue event={event}")
+        else:
+            logger.warning(f"{direction} event queue is full, dropping event={event}")

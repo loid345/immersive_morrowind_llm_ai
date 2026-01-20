@@ -58,6 +58,8 @@ class AppConfig(BaseModel):
             event_bus=EventBus.Config(
                 consumers=10,
                 producers=10,
+                queue_max_size=1000,
+                queue_overflow="drop_oldest",
                 system=EventBus.Config.MwseTcp(
                     type='mwse_tcp',
                     mwse_tcp=MwseTcpEventBusBackend.Config(
