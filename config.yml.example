@@ -4,6 +4,7 @@ language: ru
 event_bus:
   consumers: 30
   producers: 30
+  queue_max_size: 1000
   system:
     mwse_tcp:
       encoding: cp1251
