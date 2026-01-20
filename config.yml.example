@@ -11,12 +11,14 @@ event_bus:
     type: mwse_tcp
 llm:
   system:
-    type: google
+    type: openai
 
-    google:
+    openai:
       api_key: ENTER_HERE
-      # model_name: gemini-1.5-flash
-      model_name: gemini-2.0-flash
+      model_name: gpt-4o-mini
+      base_url: https://api.openai.com/v1
+      max_tokens: 1024
+      temperature: 0.7
   llm_logger:
     directory: D:\Games\immersive_morrowind_llm_logs
     max_files: 300

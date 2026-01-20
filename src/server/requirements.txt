@@ -19,6 +19,5 @@ elevenlabs
 
 # llm
 openai
-google-generativeai
 anthropic
 mistralai
