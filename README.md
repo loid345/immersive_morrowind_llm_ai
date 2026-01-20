@@ -102,6 +102,13 @@ llm:
 
 The most bare minimum setup is to have only LLM without STT and TTS - so you would need to chat with NPC only. To set it up, `speech_to_text` and `text_to_speech` in the config set to `dummy` system.
 
+## Event bus tuning
+
+When you experience bursts of events (for example, during rapid NPC activity), you can tune the internal event queues to trade latency for stability:
+
+- `event_bus.queue_max_size` controls how many events are buffered before overflow handling kicks in.
+- `event_bus.queue_overflow` controls what happens on overflow: `drop_oldest` will discard the oldest buffered event and enqueue the newest one, while `drop_newest` will discard the incoming event.
+
 
 ## STT
 
