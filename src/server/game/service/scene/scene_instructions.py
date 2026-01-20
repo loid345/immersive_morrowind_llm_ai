@@ -25,14 +25,16 @@ class SceneInstructions:
         pos: list[float]
         ref_id: str
 
-    def __init__(self, config: Config | None) -> None:
+    def __init__(self, config: Config | None, enable_keyboard_listener: bool = True) -> None:
         self._config = config
         self._hold_on = False
+        self._listener_k: keyboard.Listener | None = None
 
-        self._listener_k = keyboard.Listener(
-            on_press=self._handle_press,  # type: ignore
-        )
-        self._listener_k.start()
+        if self._config and enable_keyboard_listener:
+            self._listener_k = keyboard.Listener(
+                on_press=self._handle_press,  # type: ignore
+            )
+            self._listener_k.start()
 
         self._manually_instructed_to_hold_on_instructions = False
         self.pois: list[SceneInstructions.PointOfInterest] = []
@@ -46,52 +48,70 @@ class SceneInstructions:
                 self._manually_instructed_to_hold_on_instructions = False
                 logger.info("Manual instructions hold on released")
 
-    def get_next_manual_instruction_for_pick_npc(self, hearing_npcs: list[Npc]) -> ManualInstruction | None:
+    def _read_lines(self) -> list[str] | None:
         if self._config is None:
             return None
         if not os.path.exists(self._config.file):
+            return None
+        with open(self._config.file, 'r', encoding=self._config.encoding) as file:
+            return file.readlines()
+
+    def _write_lines(self, lines: list[str]) -> None:
+        if self._config is None:
             return
+        with open(self._config.file, 'w', encoding=self._config.encoding) as file:
+            file.writelines(lines)
+
+    def get_next_manual_instruction_for_pick_npc(self, hearing_npcs: list[Npc]) -> ManualInstruction | None:
+        self.pois = []
+        if self._config is None:
+            return None
         if self._manually_instructed_to_hold_on_instructions:
             return None
 
-        file = open(self._config.file, 'r', encoding=self._config.encoding)
-        all_lines = file.readlines()
-        file.close()
-
-        self.pois = []
+        all_lines = self._read_lines()
+        if all_lines is None:
+            return None
 
         for line_index in range(0, len(all_lines)):
             line_raw = all_lines[line_index]
-            line = line_raw.strip().lower()
-            if line.startswith("#") or len(line) == 0:
+            line_stripped = line_raw.strip()
+            line_lower = line_stripped.lower()
+            if line_lower.startswith("#") or len(line_lower) == 0:
                 continue
 
-            if line.startswith('poi '):
-                components = line.replace('poi ', '').split(',')
-                poi = SceneInstructions.PointOfInterest(
-                    'activate' if components[0] == 'activate' else 'travel',
-                    components[1],
-                    [
-                        float(components[2]),
-                        float(components[3]),
-                        float(components[4])
-                    ],
-                    components[5] if len(components) >= 6 else ''
-                )
+            if line_lower.startswith('poi '):
+                components = [part.strip() for part in line_stripped[4:].split(',')]
+                if len(components) < 5:
+                    logger.error(f"Invalid poi row {line_index}: {components}")
+                    continue
+                poi_type = components[0].lower()
+                try:
+                    poi = SceneInstructions.PointOfInterest(
+                        'activate' if poi_type == 'activate' else 'travel',
+                        components[1],
+                        [
+                            float(components[2]),
+                            float(components[3]),
+                            float(components[4])
+                        ],
+                        components[5] if len(components) >= 6 else ''
+                    )
+                except ValueError:
+                    logger.error(f"Invalid poi row {line_index}: {components}")
+                    continue
                 self.pois.append(poi)
                 continue
 
             all_lines[line_index] = f'# {line_raw}'
-            file = open(self._config.file, 'w', encoding=self._config.encoding)
-            file.writelines(all_lines)
-            file.close()
+            self._write_lines(all_lines)
 
-            if line == 'hold':
+            if line_lower == 'hold':
                 self._manually_instructed_to_hold_on_instructions = True
-                logger.info(f"Found manual instruction to hold on")
+                logger.info("Found manual instruction to hold on")
                 return None
 
-            components = line.split(' ', 1)
+            components = line_stripped.split(' ', 1)
             if len(components) == 0:
                 logger.error(f"Invalid instruction row {line_index}: {components}")
                 return None

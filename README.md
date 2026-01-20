@@ -513,6 +513,11 @@ Notes:
 
 With this mod, you can direct a scene, conversation between NPCs with a script with simple instructions.
 
+### Простая памятка (для самых простых)
+
+Если хочется кратко и без боли, есть отдельная инструкция шаг-за-шагом:
+[`docs/scene_instructions_simple_ru.md`](./docs/scene_instructions_simple_ru.md).
+
 
 <details>
 <summary>Here's example of a scene directing instructions for the first section of this video https://www.youtube.com/watch?v=AzXEMGyHnrY (Imperial General checks out the fort)</summary>
@@ -584,6 +589,14 @@ hold
 ашхан всс эх наташка ну пойду я с тобой и в ответ добавь trigger_poi_1
 ```
 </details>
+
+# Testing (очень просто)
+
+Запуск тестов (нужен `pytest`):
+
+```sh
+pytest
+```
 
 
 
