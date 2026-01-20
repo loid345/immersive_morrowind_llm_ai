@@ -23,6 +23,7 @@ class EventBus(EventProducer, EventConsumer):
         producers: int
         consumers: int
         queue_max_size: int
+        queue_overflow: Literal['drop_newest', 'drop_oldest']
 
     def __init__(self, config: Config):
         self._config = config
@@ -81,7 +82,7 @@ class EventBus(EventProducer, EventConsumer):
         try:
             self._events_consumed_from_game.put_nowait(event)
         except asyncio.QueueFull:
-            logger.warning(f"Incoming event queue is full, dropping event={event}")
+            self._handle_queue_full(self._events_consumed_from_game, event, direction="incoming")
 
     def register_handler(self, handler: Callable[[Event], Coroutine[Any, Any, None]]):
         self._handlers.append(handler)
@@ -94,4 +95,20 @@ class EventBus(EventProducer, EventConsumer):
         try:
             self._events_to_produce_to_game.put_nowait(event)
         except asyncio.QueueFull:
-            logger.warning(f"Outgoing event queue is full, dropping event={event}")
+            self._handle_queue_full(self._events_to_produce_to_game, event, direction="outgoing")
+
+    def _handle_queue_full(self, queue: asyncio.Queue[Event], event: Event, direction: str):
+        if self._config.queue_overflow == 'drop_oldest':
+            try:
+                queue.get_nowait()
+            except asyncio.QueueEmpty:
+                logger.warning(f"{direction} event queue was full but now empty, dropping event={event}")
+                return
+            try:
+                queue.put_nowait(event)
+            except asyncio.QueueFull:
+                logger.warning(f"{direction} event queue is still full, dropping event={event}")
+            else:
+                logger.warning(f"{direction} event queue full, dropped oldest to enqueue event={event}")
+        else:
+            logger.warning(f"{direction} event queue is full, dropping event={event}")
