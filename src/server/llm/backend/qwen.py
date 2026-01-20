@@ -6,15 +6,16 @@ from util.logger import Logger
 from pydantic import BaseModel, Field
 from llm.backend.abstract import AbstractLlmBackend, LlmBackendRequest, LlmBackendResponse
 
-import anthropic
+from openai import OpenAI
 
 logger = Logger(__name__)
 
 
-class AnthropicLlmBackend(AbstractLlmBackend):
+class QwenLlmBackend(AbstractLlmBackend):
     class Config(BaseModel):
         api_key: str
         model_name: str
+        base_url: str = Field(default="https://dashscope.aliyuncs.com/compatible-mode/v1")
 
         system_instructions_role: str = Field(default='system')
         max_tokens: int = Field(default=1024)
@@ -26,7 +27,7 @@ class AnthropicLlmBackend(AbstractLlmBackend):
         self._config = config
         self._lock = asyncio.Lock()
 
-        self._client = anthropic.Anthropic(api_key=self._config.api_key)
+        self._client = OpenAI(api_key=self._config.api_key, base_url=self._config.base_url)
 
     async def send(self, request: LlmBackendRequest) -> LlmBackendResponse:
         await self._lock.acquire()
@@ -54,8 +55,8 @@ class AnthropicLlmBackend(AbstractLlmBackend):
                 })
 
             t0 = time.time()
-            logger.debug(f"Sent request to the model, waiting...")
-            response = self._client.messages.create(
+            logger.debug("Sent request to the model, waiting...")
+            response = self._client.chat.completions.create(
                 model=self._config.model_name,
                 messages=history,
                 max_tokens=self._config.max_tokens,
@@ -66,12 +67,12 @@ class AnthropicLlmBackend(AbstractLlmBackend):
             logger.debug(f"Response from the model received in {dt} sec")
             logger.debug(f"> {response}")
 
-            text: str = ''
-            if response.content and response.content[0].type == 'text':
-                text = response.content[0].text
+            text = response.choices[0].message.content
+            if text:
                 text = text.strip()
             else:
                 logger.warning(f"Received empty response from the model: {response}")
+                text = ''
 
             return LlmBackendResponse(
                 text=text

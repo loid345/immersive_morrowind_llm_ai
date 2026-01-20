@@ -78,21 +78,21 @@ Config is big enough. Visit `src\server\app\app_config.py` to check out it in de
 
 ## LLM
 
-Currently supported LLM: Google, Mistral, any OpenAI-compatible, Claude.
+Currently supported LLM: any OpenAI-compatible API (OpenAI, LM Studio, Ollama, vLLM, etc.), Qwen, Mistral, Claude.
 
-I personally find Google Gemini (`gemini-1.5-flash` or `gemini-2.0-flash`) the easiest to use. Here's how to set it up:
-
-- go to Google Cloud Console, create project, select Gemini API, create credentials for it, copy the API key, paste it in the config:
+The recommended setup is to use the OpenAI-compatible configuration because it works with both cloud vendors and local LLM servers:
 
 ```yaml
 llm:
   system:
-    type: google
+    type: openai
 
-    google:
+    openai:
       api_key: ENTER_HERE
-      # model_name: gemini-1.5-flash
-      model_name: gemini-2.0-flash
+      model_name: gpt-4o-mini
+      base_url: https://api.openai.com/v1
+      max_tokens: 1024 # optional
+      temperature: 0.7 # optional
   llm_logger:
     directory: D:\Games\immersive_morrowind_llm_logs
     max_files: 300
@@ -208,7 +208,7 @@ A. Yes. It should be easy enough transition from the technical standpoint.
 
 Q. Is it free?\
 A. The mod itself is opensource under GPLv3.\
-Google Gemini can be used for free if you do not reach limits.\
+LLM costs depend on the provider (many local LLM setups are free).\
 Elevenlabs - you have to pay for it.\
 Vosk locally is free.
 
@@ -253,7 +253,7 @@ A. Yes. It would require splitting server into two parts: local and remote. Loca
 
 ## Config example
 
-Example of the most basic config, only with Gemini and no TTS/STT:
+Example of the most basic config, only with OpenAI-compatible LLM and no TTS/STT:
 
 ```yaml
 morrowind_data_files_dir: C:\SteamLibrary\steamapps\common\Morrowind\Data Files
@@ -268,12 +268,14 @@ event_bus:
     type: mwse_tcp
 llm:
   system:
-    type: google
+    type: openai
 
-    google:
-      api_key: AIzaSyCfV_0n8eJxtxS-8mL-<...>
-      # model_name: gemini-1.5-flash
-      model_name: gemini-2.0-flash
+    openai:
+      api_key: sk-proj-nHi39i9a0tom2R<...>
+      model_name: gpt-4o-mini
+      base_url: https://api.openai.com/v1
+      max_tokens: 1024
+      temperature: 0.7
   llm_logger:
     directory: D:\Games\immersive_morrowind_llm_logs
     max_files: 300
@@ -317,7 +319,7 @@ npc_director:
 scene_instructions: null
 ```
 
-Here example of my local config, with Gemini+Vosk+ElevenLabs, with API keys stripped away:
+Here example of my local config, with OpenAI-compatible LLM + Vosk + ElevenLabs, with API keys stripped away:
 
 ```yaml
 morrowind_data_files_dir: C:\SteamLibrary\steamapps\common\Morrowind\Data Files
@@ -332,12 +334,14 @@ event_bus:
     type: mwse_tcp
 llm:
   system:
-    type: google
+    type: openai
 
-    google:
-      api_key: AIzaSyCfV_0n8eJxtxS-8mL-<...>
-      # model_name: gemini-1.5-flash
-      model_name: gemini-2.0-flash
+    openai:
+      api_key: sk-proj-nHi39i9a0tom2R<...>
+      model_name: gpt-4o-mini
+      base_url: https://api.openai.com/v1
+      max_tokens: 1024
+      temperature: 0.7
   llm_logger:
     directory: D:\Games\immersive_morrowind_llm_logs
     max_files: 300
@@ -459,6 +463,44 @@ llm:
       max_tokens: 1024
       temperature: 0.7
 ```
+
+Here's example of Qwen configuration using the OpenAI-compatible endpoint:
+
+```yaml
+llm:
+  system:
+    type: qwen
+
+    qwen:
+      api_key: ENTER_HERE
+      model_name: qwen-plus
+      base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      max_tokens: 1024
+      temperature: 0.7
+```
+
+### Qwen setup (step-by-step)
+
+1. Create a Qwen/DashScope API key in Alibaba Cloud.
+2. Pick a Qwen model name (e.g. `qwen-plus`, `qwen-turbo`, `qwen-max`).
+3. Add the configuration below to your `config.yml`:
+
+```yaml
+llm:
+  system:
+    type: qwen
+
+    qwen:
+      api_key: YOUR_DASHSCOPE_API_KEY
+      model_name: qwen-plus
+      base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      max_tokens: 1024
+      temperature: 0.7
+```
+
+Notes:
+- `base_url` uses DashScope's OpenAI-compatible endpoint.
+- You can point `base_url` to a self-hosted Qwen-compatible API if you run one locally.
 
 ## Directing
 

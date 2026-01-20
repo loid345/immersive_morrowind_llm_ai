@@ -3,8 +3,6 @@ import time
 from typing import Any, cast
 from util.logger import Logger
 
-from google.generativeai.client import configure  # type: ignore
-from google.generativeai.generative_models import GenerativeModel  # type: ignore
 from pydantic import BaseModel, Field
 from llm.backend.abstract import AbstractLlmBackend, LlmBackendRequest, LlmBackendResponse
 
